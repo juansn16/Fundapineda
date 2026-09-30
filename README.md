@@ -21,8 +21,8 @@ noticias, programas, métricas, bandeja de mensajes de contacto y exportación d
 
 | Herramienta | Versión | Notas |
 |---|---|---|
-| SO (VPS) | Ubuntu 22.04 · 24.04 LTS | Lo probado; otro Debian debería valer |
-| Python | 3.11.x | `deadsnakes` en 22.04; la app corre con `env/` (venv) |
+| SO (VPS) | Ubuntu 22.04 · 24.04 · Debian 11/12/13 | Incluye derivados estilo Debian (p. ej. Canaima) |
+| Python | 3.11.x | Ubuntu: `deadsnakes`; Debian 12: repo oficial. Si no hay 3.11, usa el `python3` del sistema (≥3.10) con aviso |
 | Node.js / npm | 22.x LTS / 10.x | Solo para compilar el frontend (build) |
 | MariaDB / MySQL | 10.11 (24.04) · 10.6 (22.04) / MySQL 8.x | Backend usa PyMySQL |
 | nginx | 1.24+ | Solo loopback `127.0.0.1:8088`, detrás del túnel (SPA + proxy) |
@@ -66,11 +66,17 @@ export GIT_REPO_URL=https://<TU-REPO>        # repo del proyecto ya con deploy/ 
 sudo DOMAIN=fundapineda.org bash deploy/install.sh
 ```
 
-El script es **idempotente** y hace: paquetes base, Python 3.11, Node 22,
-usuario/rutas, MariaDB con base + esquema + índices, `.env` con `SECRET_KEY`
-aleatoria y API keys de BD, venv + dependencias (sin `pywin32`, solo Windows),
-build del frontend, nginx interno (loopback) y servicio systemd del backend.
-Firewall: solo 22/tcp (el túnel es saliente).
+El script es **idempotente y respeta lo ya instalado**: detecta el SO
+(Ubuntu/Debian) y solo instala los paquetes que faltan. Hace: paquetes base,
+Python 3.11, Node 22, usuario/rutas, MariaDB con base + esquema + índices,
+`.env` con `SECRET_KEY` aleatoria y API keys de BD, venv + dependencias (sin
+`pywin32`, solo Windows), build del frontend, nginx interno (loopback) y
+servicio systemd del backend. Firewall: solo 22/tcp (el túnel es saliente).
+
+- Si la base quedó a medias de un intento previo, reejecuta con `RESET_DB=1`
+  (dropea y reimporta). El script aborta con instrucciones si detecta un
+  esquema viejo (sin `usuarios.verificado`/`verification_codes`).
+- Si `cloudflared` ya está instalado, no se toca el repositorio de APT.
 
 Pendientes **manuales** después del install:
 
@@ -100,11 +106,14 @@ ADMIN_EMAIL=... ADMIN_PASSWORD=... bash deploy/check_health.sh
 
 ### Desglose manual (si no usas install.sh)
 
-1. **SO y repos**: Ubuntu 22.04/24.04, clonar repo en `/opt/fundapineda`.
+1. **SO y repos**: Ubuntu 22.04/24.04 o Debian 11/12/13; clonar repo en `/opt/fundapineda`.
 2. **Dependencias de sistema**:
    `nginx mariadb-server build-essential libgomp1 rsync libreoffice-writer fonts-dejavu-core`.
-3. **Python 3.11** (si el sistema no la trae): `add-apt-repository ppa:deadsnakes/ppa`
-   e instalar `python3.11 python3.11-venv python3.11-dev`.
+3. **Python 3.11**:
+   - Ubuntu: `add-apt-repository ppa:deadsnakes/ppa` e instalar
+     `python3.11 python3.11-venv python3.11-dev`.
+   - Debian: `apt install python3.11 python3.11-venv python3.11-dev`; si no está
+     en el repo, usar el `python3` del sistema (≥3.10).
 4. **Node 22**: `curl -fsSL https://deb.nodesource.com/setup_22.x | bash -` + `apt install nodejs`.
 5. **Frontend**: `cd fron-fundapineda && npm ci && VITE_API_URL='' npm run build`
    y copiar `dist/` a `/var/www/fundapineda`.
