@@ -1,0 +1,29 @@
+# FundaPineda - configuracion de cloudflared (tunel nombrado)
+#
+# Como usarla (una sola vez, en el servidor):
+#   1) cloudflared tunnel login                 # abre en el navegador
+#   2) cloudflared tunnel create fundapineda    # imprime el UUID del tunel
+#   3) cloudflared tunnel route dns fundapineda fundapineda.org
+#      cloudflared tunnel route dns fundapineda www.fundapineda.org
+#   4) Copiar el JSON generado:
+#        sudo cp ~/.cloudflared/<UUID>.json /etc/cloudflared/
+#   5) Reemplazar abajo:
+#        tunnel: <UUID del tunel>
+#        credentials-file: /etc/cloudflared/<UUID>.json
+#      y guardar en /etc/cloudflared/config.yml
+#   6) sudo cloudflared service install         # crea el servicio systemd
+#      sudo systemctl enable --now cloudflared
+#
+# Nota: cloudflared solo hace SALIDA hacia Cloudflare; no abre puertos.
+# Origen interno: nginx escucha en 127.0.0.1:8088 (SPA + API).
+
+tunnel: <TUNNEL_ID>
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: fundapineda.org
+    service: http://127.0.0.1:8088
+  - hostname: www.fundapineda.org
+    service: http://127.0.0.1:8088
+  # Sin match: devolver 404 (no exponer nada mas)
+  - service: http_status:404

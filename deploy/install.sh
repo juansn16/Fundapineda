@@ -9,7 +9,8 @@
 #
 # Versiones objetivo:
 #   Python 3.11 / Node.js 22 LTS / MariaDB (10.11 en Ubuntu 24.04, 10.6 en 22.04)
-#   nginx 1.24+ / LibreOffice 7.x (convierte docx->pdf en el backend)
+#   nginx 1.24+ (solo loopback, detras del tunnel) / LibreOffice 7.x (docx->pdf)
+#   cloudflared 2025.x (tunel nombrado hacia Cloudflare; entrada publica)
 #
 # Idempotente: se puede re-ejecutar sin romper nada.
 # Uso: sudo bash deploy/install.sh
@@ -45,7 +46,7 @@ log "Instalando paquetes base..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
-    ca-certificates curl git gnupg software-properties-common \
+    ca-certificates curl git gnupg software-properties-common lsb-release \
     nginx mariadb-server mariadb-client \
     build-essential libgomp1 python3-venv python3-pip rsync \
     libreoffice-writer fonts-dejavu-core \
@@ -177,8 +178,8 @@ rsync -a --delete "${FRONTEND_DIR}/dist/" "${WEB_ROOT}/" || {
 }
 chown -R root:root "${WEB_ROOT}"
 
-# --- 9. nginx ---------------------------------------------------------------
-log "Configurando nginx..."
+# --- 9. nginx (interno, solo loopback) --------------------------------------
+log "Configurando nginx (escucha solo en 127.0.0.1:8088)..."
 if [[ "$(readlink -f /etc/nginx/sites-enabled/default 2>/dev/null || true)" == *default ]]; then
     rm -f /etc/nginx/sites-enabled/default
 fi
@@ -190,6 +191,32 @@ nginx -t
 systemctl enable --now nginx
 systemctl reload nginx
 
+# --- 9b. cloudflared (tunel nombrado; entrada publica) -----------------------
+log "cloudflared: verificando binario..."
+if ! command -v cloudflared >/dev/null 2>&1; then
+    log "Instalando cloudflared (repo oficial)..."
+    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+        | gpg --dearmor -o /usr/share/keyrings/cloudflare-main.gpg
+    echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" \
+        > /etc/apt/sources.list.d/cloudflared.list
+    apt-get update
+    apt-get install -y cloudflared
+else
+    log "cloudflared ya instalado: $(cloudflared --version)"
+fi
+
+CF_CONFIG_DIR="/etc/cloudflared"
+mkdir -p "${CF_CONFIG_DIR}"
+if [[ ! -f "${CF_CONFIG_DIR}/config.yml" ]]; then
+    log "Instalando plantilla de config en ${CF_CONFIG_DIR}/config.yml..."
+    cp "${APP_ROOT}/deploy/cloudflared-config.yml" "${CF_CONFIG_DIR}/config.yml"
+    chown root:root "${CF_CONFIG_DIR}/config.yml"
+    chmod 644 "${CF_CONFIG_DIR}/config.yml"
+    warn "EDITA ${CF_CONFIG_DIR}/config.yml con el UUID real del tunel."
+else
+    warn "Ya existe ${CF_CONFIG_DIR}/config.yml; no se toca."
+fi
+
 # --- 10. Servicio del backend -----------------------------------------------
 log "Instalando servicio systemd fundapineda-backend..."
 if ! grep -q "${APP_ROOT}" /etc/systemd/system/fundapineda-backend.service 2>/dev/null; then
@@ -199,10 +226,9 @@ fi
 systemctl enable --now fundapineda-backend
 
 # --- 11. Firewall -----------------------------------------------------------
-log "Abriendo puertos 22/tcp 80/tcp 443/tcp en ufw..."
+# El trafico entra por el tunnel SALIENTE de cloudflared: no se abren 80/443.
+log "Abriendo solo 22/tcp (SSH) en ufw..."
 ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null 2>&1
-ufw allow 80/tcp >/dev/null 2>&1
-ufw allow 443/tcp >/dev/null 2>&1
 ufw --force enable
 
 # --- 12. Verificacion -------------------------------------------------------
@@ -211,16 +237,20 @@ log "Health check del backend..."
 HEALTH="$(curl -fsS -m 10 http://127.0.0.1:8000/health || true)"
 log "Backend /health -> ${HEALTH:-NO RESPONDE}"
 
-SERVER_IP="$(hostname -I | awk '{print $1}')"
 log "Resumen:"
-log "  SPA + API: http://${SERVER_IP:-<IP del servidor>}/  (aun sin TLS)"
-log "  .env del backend: ${ENV_FILE}   (editar MAIL_* y CONTACT_NOTIFICATION_EMAIL)"
+log "  nginx interno:      http://127.0.0.1:8088 (SPA + API)"
+log "  backend (uvicorn):  http://127.0.0.1:8000"
+log "  .env del backend:   ${ENV_FILE}   (editar MAIL_* y CONTACT_NOTIFICATION_EMAIL)"
 log "  Firmas/PDFs/noticias: ${BACKEND_DIR}/src/static/ (usuario ${APP_USER})"
 log
-log "Siguientes pasos:"
-log "  1) Asigna el DNS A de ${DOMAIN} a este servidor."
-log "  2) TLS:  apt install certbot python3-certbot-nginx"
-log "          certbot --nginx -d ${DOMAIN} -d www.${DOMAIN}"
-log "  3) Revisa ${ENV_FILE} (MAIL_PASSWORD = app password de Gmail; ver README)."
-log "  4) Prueba: POST /auth/login, genera una adscripcion (PDF via LibreOffice)."
-log "  5) Backup: mysqldump + rsync de src/static (ver README)."
+log "Siguientes pasos (tunel cloudflared, una sola vez):"
+log "  1) cloudflared tunnel login"
+log "  2) cloudflared tunnel create fundapineda"
+log "  3) cloudflared tunnel route dns fundapineda ${DOMAIN}"
+log "     cloudflared tunnel route dns fundapineda www.${DOMAIN}"
+log "  4) sudo cp ~/.cloudflared/<UUID>.json /etc/cloudflared/  (chmod 600)"
+log "  5) Edita /etc/cloudflared/config.yml con el UUID real del tunel."
+log "  6) sudo cloudflared service install && systemctl enable --now cloudflared"
+log "  7) En el dashboard de Cloudflare: SSL/TLS -> modo 'Full (strict)'."
+log "  8) Prueba: ${DOMAIN} (health check, login, adscripcion/PDF)."
+log "  9) Backup: mysqldump + rsync de src/static (ver README)."

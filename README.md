@@ -13,7 +13,7 @@ noticias, programas, métricas, bandeja de mensajes de contacto y exportación d
 │       ├── static/         # Runtime: firmas, PDFs, noticias (gitignore) + plantilla docx
 │       └── utils/          # PDF (docx->PDF), email, seguridad, IP de cliente
 ├── fron-fundapineda/       # Frontend: React + Vite + TypeScript (SPA, React Router)
-├── deploy/                 # Instalación en VPS Linux (nginx + systemd)
+├── deploy/                 # Instalación en VPS Linux (cloudflared + nginx + systemd)
 └── .env / .env.*           # Secretos locales (NO versionados, ver .gitignore)
 ```
 
@@ -25,10 +25,11 @@ noticias, programas, métricas, bandeja de mensajes de contacto y exportación d
 | Python | 3.11.x | `deadsnakes` en 22.04; la app corre con `env/` (venv) |
 | Node.js / npm | 22.x LTS / 10.x | Solo para compilar el frontend (build) |
 | MariaDB / MySQL | 10.11 (24.04) · 10.6 (22.04) / MySQL 8.x | Backend usa PyMySQL |
-| nginx | 1.24+ | Sirve SPA y proxya la API |
+| nginx | 1.24+ | Solo loopback `127.0.0.1:8088`, detrás del túnel (SPA + proxy) |
+| cloudflared | 2025.x | Túnel nombrado (saliente) hacia Cloudflare; entrada pública + TLS |
 | LibreOffice | 7.x (`libreoffice-writer`) | Convierte docx → PDF en Linux |
 | Uvicorn (FastAPI) | uvicorn 0.46 / fastapi 0.136 | Escucha solo en 127.0.0.1:8000 |
-| Certbot | 2.x | HTTPS (Let's Encrypt), opcional pero recomendado |
+| Cloudflare | — | DNS + edge (HTTPS). SSL/TLS en modo *Full (strict)*; sin Certbot |
 
 Requisitos en **desarrollo (Windows)**: Python 3.11 + MS Word (para `docx2pdf`) +
 MariaDB local. El front en dev apunta a `http://localhost:8000` (`VITE_API_URL`).
@@ -36,21 +37,22 @@ MariaDB local. El front en dev apunta a `http://localhost:8000` (`VITE_API_URL`)
 ## Modelo de despliegue
 
 ```
-Navegador
-   │  https://fundapineda.org
-   ▼
-nginx :80/:443  ── estáticos (SPA en /var/www/fundapineda)
-   │  · try_files → /index.html (React Router)
-   │  · /assets/* → cache inmutable
-   └─ proxy (prefijos /auth /reports /admin /noticias /contacto /user /health)
-                ▼
-      uvicorn (127.0.0.1:8000, --proxy-headers)
-                ▼
-      MariaDB (localhost:3306)   ·   LibreOffice headless (PDF de adscripción)
+Navegador → Cloudflare edge (HTTPS, TLS gestionado por Cloudflare)
+              ↑ túnel saliente (0 puertos abiertos)
+           cloudflared (servicio systemd)
+              └─→ nginx (127.0.0.1:8088, SOLO loopback)
+                    │  · try_files → /index.html (React Router)
+                    │  · /assets/* → cache inmutable
+                    └─ proxy (prefijos /auth /reports /admin /noticias /contacto /user /health)
+                         ▼
+                 uvicorn (127.0.0.1:8000, --proxy-headers)
+                         ▼
+                 MariaDB (localhost:3306) · LibreOffice headless (PDF de adscripción)
 ```
 
-Solo **nginx** está expuesto a Internet. El frontend llama a la misma origin
-(`VITE_API_URL` vacío) y nginx proxya los prefijos de la API al backend.
+El frontend llama a la misma origin (`VITE_API_URL` vacío). Todo el tráfico
+público entra por **cloudflared** (conexión *saliente* hacia Cloudflare); nginx
+queda interno y solo escucha en `127.0.0.1:8088`.
 
 ## Puesta en producción (paso a paso)
 
@@ -67,7 +69,8 @@ sudo DOMAIN=fundapineda.org bash deploy/install.sh
 El script es **idempotente** y hace: paquetes base, Python 3.11, Node 22,
 usuario/rutas, MariaDB con base + esquema + índices, `.env` con `SECRET_KEY`
 aleatoria y API keys de BD, venv + dependencias (sin `pywin32`, solo Windows),
-build del frontend, nginx, servicio systemd y firewall (22/80/443).
+build del frontend, nginx interno (loopback) y servicio systemd del backend.
+Firewall: solo 22/tcp (el túnel es saliente).
 
 Pendientes **manuales** después del install:
 
@@ -77,11 +80,17 @@ sudo nano /opt/fundapineda/.env      # MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM,
                                      # CONTACT_NOTIFICATION_EMAIL, FRONTEND_URL
 sudo systemctl restart fundapineda-backend
 
-# 3. DNS: apuntar fundapineda.org (A) y www (A) a la IP del VPS.
+# 3. Túnel nombrado de cloudflared (una sola vez)
+cloudflared tunnel login
+cloudflared tunnel create fundapineda              # guarda el UUID
+cloudflared tunnel route dns fundapineda fundapineda.org
+cloudflared tunnel route dns fundapineda www.fundapineda.org
+sudo cp ~/.cloudflared/<UUID>.json /etc/cloudflared/ && sudo chmod 600 /etc/cloudflared/<UUID>.json
+sudo nano /etc/cloudflared/config.yml              # poner el UUID real (plantilla en deploy/)
+sudo cloudflared service install
+sudo systemctl enable --now cloudflared
 
-# 4. HTTPS con Certbot (redirección automática a https)
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d fundapineda.org -d www.fundapineda.org
+# 4. En el dashboard de Cloudflare: SSL/TLS → modo "Full (strict)"
 
 # 5. Verificación
 bash deploy/check_health.sh
@@ -113,10 +122,13 @@ ADMIN_EMAIL=... ADMIN_PASSWORD=... bash deploy/check_health.sh
 8. **.env**: copiar `Api-FundaPineda/.env.example` a `/opt/fundapineda/.env`,
    generar `SECRET_KEY` (`openssl rand -hex 32`), fijar `DB_*`, `FRONTEND_URL`,
    `CORS_ORIGINS=https://fundapineda.org`, `TRUSTED_PROXIES=127.0.0.1`, `MAIL_*`.
-9. **nginx**: `deploy/nginx_fundapineda.conf` → `/etc/nginx/sites-available/`,
-   `nginx -t` y recargar. El backend escucha en `127.0.0.1:8000`
-   (`uvicorn src.main:app --proxy-headers --forwarded-allow-ips=127.0.0.1`).
-10. **Servicio**: `deploy/fundapineda-backend.service` → `/etc/systemd/system/`,
+9. **nginx** (interno): `deploy/nginx_fundapineda.conf` → `/etc/nginx/sites-available/`,
+   `nginx -t` y recargar. Escucha solo en `127.0.0.1:8088`. El backend escucha en
+   `127.0.0.1:8000` (`uvicorn src.main:app --proxy-headers --forwarded-allow-ips=127.0.0.1`).
+10. **Túnel cloudflared**: hacer `login`, `tunnel create`, `route dns`
+    (ver pasos 3 y 4 arriba), editar `/etc/cloudflared/config.yml` con el UUID
+    y levantar con `cloudflared service install` + `systemctl enable --now cloudflared`.
+11. **Servicio**: `deploy/fundapineda-backend.service` → `/etc/systemd/system/`,
     `daemon-reload` + `enable --now`.
 
 ## Variables de entorno (backend, `.env`)
@@ -163,11 +175,13 @@ Rollback: `git checkout <commit-anterior>` y repetir build/restart.
 
 | Síntoma | Causa / corrección |
 |---|---|
+| El sitio no abre en el dominio | Revisar DNS en Cloudflare; `journalctl -u cloudflared -n 50`; que `/etc/cloudflared/config.yml` tenga el UUID real y que `<UUID>.json` (chmod 600) esté en `/etc/cloudflared/` |
 | La firma no genera PDF en Linux | Falta `libreoffice-writer` o `fonts-dejavu-core`; verificar `which soffice` y `journalctl -u fundapineda-backend -f` |
 | Error `pywin32` al instalar dependencias | Excluir la línea `pywin32==…` de `requirements.txt` en Linux (es solo Windows) |
 | Link de "restablecer contraseña" apunta a `localhost` | `FRONTEND_URL` mal/no seteado en el `.env`; reiniciar el servicio |
 | Descargas/exportes a los 30 s fallan | Reportes grandes: `proxy_read_timeout 300s` ya está en el nginx; revisar tiempo de consulta |
-| IP del cliente siempre es `127.0.0.1` | Revisar `TRUSTED_PROXIES` (debe ser `127.0.0.1` detrás de nginx) y `--forwarded-allow-ips` |
+| IP del cliente siempre es `127.0.0.1` | Revisar `TRUSTED_PROXIES` (debe ser `127.0.0.1`: nginx + cloudflared conectan por loopback) y `--forwarded-allow-ips` |
+| El navegador marca "no seguro" o carga incompleto | En Cloudflare: SSL/TLS en modo *Full (strict)*; el `X-Forwarded-Proto` se pasa como https |
 | `CORS` da error en prod | Con same-origin no aplica; si el front está en otro dominio, ajustar `CORS_ORIGINS` y `VITE_API_URL` |
 | El front no encuentra la API | `VITE_API_URL` quedó con `http://localhost:8080` de una build vieja: recompilar con cadena vacía |
 | Mensajes SMTP no salen | Usar **app password** de Gmail (no la clave normal); puerto 587 + STARTTLS (valores del `.env.example`) |
@@ -176,8 +190,9 @@ Rollback: `git checkout <commit-anterior>` y repetir build/restart.
 ## Checklist de seguridad
 
 - [ ] Rotar `SECRET_KEY` y `MAIL_PASSWORD` en producción (nunca los del `.env` local).
-- [ ] Solo nginx expuesto; uvicorn escucha en `127.0.0.1:8000` (`ufw` con 22/80/443).
-- [ ] HTTPS emitido con Certbot y `server_tokens off` (ya está en el nginx de deploy).
+- [ ] Entrada pública vía túnel saliente de cloudflared; uvicorn y nginx en `127.0.0.1` (`ufw` solo 22/tcp).
+- [ ] HTTPS por Cloudflare con SSL/TLS en *Full (strict)* y `server_tokens off` (ya en el nginx de deploy).
+- [ ] Credenciales del túnel: `<UUID>.json` con `chmod 600` en `/etc/cloudflared/`.
 - [ ] Backups automáticos de BD y `static/` probados.
 - [ ] `robots.txt` público bloquea `/dashboard`; el acceso real está por roles (JWT).
 - [ ] No commitear `.env`, `*.pem` ni `_backups/` (cubierto por `.gitignore` raíz).
