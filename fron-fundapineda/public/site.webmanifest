@@ -1,0 +1,24 @@
+{
+  "name": "Fundación Gustavo Pineda - P.A.A.I.S.",
+  "short_name": "FundaPineda",
+  "description": "Programa Auto-gestionado de Atención Integral de Salud en Maracaibo, Zulia, Venezuela.",
+  "lang": "es-VE",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#12654a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

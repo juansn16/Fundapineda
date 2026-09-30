@@ -1,0 +1,23 @@
+# Normalizacion de finales de linea
+* text=auto
+
+# Scripts de despliegue: SIEMPRE LF (se ejecutan en Linux)
+*.sh text eol=lf
+
+# Definiciones de servicio / configs: LF
+*.service text eol=lf
+*.conf text eol=lf
+*.ini text eol=lf
+
+# Artefactos binarios / documentacion sin normalizar
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpeg binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.ttf binary

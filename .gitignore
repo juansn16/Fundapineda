@@ -1,0 +1,46 @@
+# ---- Secretos y configuracion local ----
+.env
+.env.*local
+*.pem
+*.key
+
+# ---- Entornos virtuales ----
+# ATENCION: el venv local del backend esta en Api-FundaPineda/env/
+env/
+.venv/
+venv/
+
+# ---- Backups y artefactos de desarrollo locales (con datos reales) ----
+_backups/
+
+# ---- Runtime del backend (la app los crea y escribe) ----
+src/static/temp/
+src/static/document/
+src/static/signatures/
+src/static/new/
+src/static/contact/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+npm-debug.log*
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.sw?
+*.sln
+*.njsproj
+*.ntvs*
+*.log
+
+# ---- Herramientas auxiliares ----
+.opencode/

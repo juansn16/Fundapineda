@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1D5BA3;
+  --color-accent: #C8161D;
+  --color-secondary: #575756;
+  
+  --font-heading: "Franklin Gothic Heavy", "Arial Black", system-ui, sans-serif;
+  --font-body: system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply bg-white text-gray-700 font-body antialiased;
+    font-family: var(--font-body);
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    @apply text-primary font-bold;
+  }
+
+  h1, h2 {
+    letter-spacing: -0.02em;
+  }
+
+  /* Indicador de foco visible de alto contraste (WCAG 2.4.7) */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .bg-primary :focus-visible {
+    outline-color: #ffffff;
+  }
+}
+
+@layer utilities {
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-white px-6 py-3 rounded-lg font-semibold 
+           transition-all duration-300 hover:scale-[1.02] hover:shadow-lg
+           focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+  
+  .btn-secondary {
+    @apply bg-accent text-white px-6 py-3 rounded-lg font-semibold 
+           transition-all duration-300 hover:scale-[1.02] hover:shadow-lg
+           focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2;
+  }
+  
+  .btn-outline {
+    @apply border-2 border-primary text-primary px-6 py-3 rounded-lg font-semibold 
+           transition-all duration-300 hover:bg-primary hover:text-white
+           focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+  
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold text-primary mb-4;
+  }
+  
+  .section-subtitle {
+    @apply text-lg text-secondary max-w-2xl;
+  }
+  
+  /* Gradient impact for CTAs and hero sections */
+  .bg-gradient-impact {
+    background: linear-gradient(135deg, #004a99 0%, #0072ff 100%);
+  }
+
+  /* Gradient button with animated hover */
+  .btn-gradient {
+    @apply text-white px-6 py-3 rounded-lg font-semibold
+           transition-all duration-300 hover:scale-[1.02] hover:shadow-lg
+           focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2;
+    background: linear-gradient(135deg, #004a99 0%, #0072ff 100%);
+    background-size: 200% 200%;
+    background-position: 0% 0%;
+    transition: background-position 0.4s ease, transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .btn-gradient:hover {
+    background-position: 100% 100%;
+  }
+
+  /* Glassmorphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .glass-scrolled {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* Card glow border on hover */
+  .card-glow {
+    @apply border border-transparent;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .card-glow:hover {
+    border-color: rgba(0, 114, 255, 0.3);
+    box-shadow: 0 0 20px rgba(0, 114, 255, 0.08);
+  }
+
+  /* Modal styles */
+  .modal-backdrop {
+    @apply bg-black/60 backdrop-blur-sm;
+  }
+  
+  .modal-content {
+    @apply max-h-[calc(100vh-2rem)] overflow-y-auto;
+  }
+  
+  .form-textarea {
+    @apply min-h-[100px] max-h-[200px];
+  }
+}
+
+/* Float animation for hero images */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-15px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Pulsing glow for CTAs */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 114, 255, 0.15); }
+  50% { box-shadow: 0 0 40px rgba(0, 114, 255, 0.3); }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}

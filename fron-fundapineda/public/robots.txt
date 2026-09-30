@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Paginas privadas: no aportan nada al indice y no deberían rastrearse
+Disallow: /dashboard
+Disallow: /login
+Disallow: /recuperar-contrasena
+
+Sitemap: https://fundapineda.org/sitemap.xml

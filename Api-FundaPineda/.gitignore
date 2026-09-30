@@ -1,0 +1,21 @@
+# Secretos y configuracion local
+.env
+.env.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Datos generados en runtime
+src/static/temp/
+src/static/document/
+src/static/signatures/
+src/static/new/
+src/static/contact/
+*.log

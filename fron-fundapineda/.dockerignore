@@ -1,0 +1,7 @@
+node_modules
+dist
+private
+.git
+.github
+*.log
+.env
