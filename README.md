@@ -13,8 +13,7 @@ noticias, programas, métricas, bandeja de mensajes de contacto y exportación d
 │       ├── static/         # Runtime: firmas, PDFs, noticias (gitignore) + plantilla docx
 │       └── utils/          # PDF (docx->PDF), email, seguridad, IP de cliente
 ├── fron-fundapineda/       # Frontend: React + Vite + TypeScript (SPA, React Router)
-├── deploy/                 # Instalación tradicional en VPS Linux (sin Docker)
-├── docker-compose.yml      # Alternativa con Docker (no es la ruta recomendada)
+├── deploy/                 # Instalación en VPS Linux (nginx + systemd)
 └── .env / .env.*           # Secretos locales (NO versionados, ver .gitignore)
 ```
 
@@ -34,7 +33,7 @@ noticias, programas, métricas, bandeja de mensajes de contacto y exportación d
 Requisitos en **desarrollo (Windows)**: Python 3.11 + MS Word (para `docx2pdf`) +
 MariaDB local. El front en dev apunta a `http://localhost:8000` (`VITE_API_URL`).
 
-## Modelo de despliegue (tradicional, sin Docker)
+## Modelo de despliegue
 
 ```
 Navegador

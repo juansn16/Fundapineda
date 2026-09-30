@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# FundaPineda - instalacion tradicional (sin Docker) en VPS Linux (Ubuntu)
+# FundaPineda - instalacion en VPS Linux (Ubuntu)
 #
 # Requisitos:
 #   - Ubuntu 22.04 o 24.04 y ejecutarse como root (o con sudo; el script
