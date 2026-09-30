@@ -111,12 +111,14 @@ GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 SQL
 
+SEED_FRESH=0
 HAS_TABLES="$(mysql -u root -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}'")"
 if [[ "${HAS_TABLES}" -eq 0 ]]; then
     log "Importando esquema + seed (funda_pineda_db.sql)..."
     mysql -u root "${DB_NAME}" < "${BACKEND_DIR}/src/models/funda_pineda_db.sql"
     log "Aplicando indices de reportes (02_indices_reportes.sql)..."
     mysql -u root "${DB_NAME}" < "${BACKEND_DIR}/src/models/02_indices_reportes.sql"
+    SEED_FRESH=1
 else
     warn "La BD ya tiene ${HAS_TABLES} tablas; se omite la importacion del seed."
     warn "Recordar aplicar manualmente 02_indices_reportes.sql si no se hizo antes."
@@ -163,6 +165,27 @@ grep -v '^pywin32==' "${BACKEND_DIR}/requirements.txt" > "${APP_ROOT}/requiremen
 
 su -s /bin/bash -c "cd '${BACKEND_DIR}' && env/bin/pip install --upgrade pip" "${APP_USER}"
 su -s /bin/bash -c "cd '${BACKEND_DIR}' && env/bin/pip install -r '${APP_ROOT}/requirements-linux.txt'" "${APP_USER}"
+
+# --- 7b. Credencial temporal del administrador ------------------------------
+# El seed trae un hash de relleno; en una instalacion nueva lo reemplazamos por
+# una contrasena aleatoria unica y la mostramos UNA sola vez. Cambiarla tras el
+# primer login (o usar /auth/forgot-password una vez configurado el SMTP).
+if [[ "${SEED_FRESH}" -eq 1 ]]; then
+    ADMIN_EMAIL="admin@fundapineda.org"
+    ADMIN_PASSWORD="$(openssl rand -hex 12)"
+    ADMIN_HASH="$("${BACKEND_DIR}/env/bin/python" -c \
+        'import bcrypt,sys;print(bcrypt.hashpw(sys.argv[1].encode()[:72],bcrypt.gensalt(12)).decode())' \
+        "${ADMIN_PASSWORD}")"
+    mysql -u root "${DB_NAME}" <<SQL
+UPDATE \`usuarios\` SET \`password_hash\`='${ADMIN_HASH}', \`activo\`=1, \`verificado\`=1 WHERE \`email\`='${ADMIN_EMAIL}';
+SQL
+    echo
+    warn "=== CREDENCIAL INICIAL DEL ADMINISTRADOR (guardar y cambiar tras el primer login) ==="
+    warn "  Usuario:  ${ADMIN_EMAIL}"
+    warn "  Password: ${ADMIN_PASSWORD}"
+    warn "===================================================================================="
+    echo
+fi
 
 mkdir -p "${BACKEND_DIR}/src/static"
 chown -R "${APP_USER}":"${APP_USER}" "${BACKEND_DIR}/src/static"
