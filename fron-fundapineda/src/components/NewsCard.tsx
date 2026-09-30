@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { Calendar, Tag } from 'lucide-react'
 import { NoticiaInIndex } from '../lib/newsService'
+import { API_URL } from '../lib/api'
 
 interface NewsCardProps {
   news: NoticiaInIndex
@@ -26,7 +27,7 @@ export function NewsCard({ news, index }: NewsCardProps) {
       return `data:${news.imagen_media_type};base64,${news.imagen_base64}`
     }
     if (news.url_imagen?.startsWith('/')) {
-      return `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}${news.url_imagen}`
+      return `${API_URL}${news.url_imagen}`
     }
     return news.url_imagen
   }

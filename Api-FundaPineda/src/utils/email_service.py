@@ -36,7 +36,8 @@ async def send_verification_email(email: str, code: str):
     await fm.send_message(message)
 
 async def send_reset_email(email: str, token: str):
-    reset_link = f"http://localhost:5173/reset-password?token={token}"
+    base_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    reset_link = f"{base_url}/reset-password?token={token}"
     
     message = MessageSchema(
         subject="Restablecimiento de contraseña - FundaPineda",

@@ -1,6 +1,10 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+// En produccion VITE_API_URL va vacio (""): el navegador llama a la misma
+// origin y nginx proxya los prefijos de la API al backend. En desarrollo se
+// define VITE_API_URL=http://localhost:8000 (ver .env del frontend).
+const API_URL = import.meta.env.VITE_API_URL || ''
+export { API_URL }
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_URL,
